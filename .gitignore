@@ -1,0 +1,3 @@
+# Notebooks just used as scratch code - practicing module development
+*.ipynb
+.ipynb_checkpoints/
