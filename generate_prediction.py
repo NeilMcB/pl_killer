@@ -25,8 +25,7 @@ form and various Opta performance metrics. It is used as a proxy for odds
 for long term planning as odds are only available a couple of gameweeks in
 advance.
 """
-from src.population import Population
-
+from src.genetic_algorithm import Population
 
 ARGV_N_GENERATIONS = 1000
 """int: The number of generations to evolve the population through.

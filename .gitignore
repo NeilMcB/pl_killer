@@ -4,3 +4,6 @@
 
 # Settings
 .vscode/
+
+# Python bits
+src/__pycache__/
