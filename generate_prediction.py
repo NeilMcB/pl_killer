@@ -6,14 +6,24 @@ Killer' by considering both gameweek odds (short term value) and fixture
 difficulty rating (long term value).
 
 It isn't very good :(
+* Genetic diversity dies it pretty quickly.
+* Performance of final result is typically worse than the best intiial
+permutation.
+
+Potential changes:
+* Always room to improve fitness scoring.
+* Parent sampling - e.g. tournament selection.
+* Carry best gene(s) through without sampling.
 
 TODO(neilmcb): refactor to package?.
+TODO(neilmcb): implement mutations.
+TODO(neilmcb): refactor plotting/tracking to package.
 
 Example
 -------
-TODO(neilmcb): an example should go here, of the form:
+To run the algorithm with a population size of 1,000 for 500 generations:
 
-    $ python generate_prediction.py argv_1 argv_2
+    $ python generate_prediction.py 1000 500
 
 PL Killer
 ---------
@@ -41,6 +51,8 @@ form and various Opta performance metrics. It is used as a proxy for odds
 for long term planning as odds are only available a couple of gameweeks in
 advance.
 """
+import argparse
+
 import matplotlib.pyplot as plt
 import numpy as np
 from numpy.random import default_rng
@@ -49,89 +61,103 @@ import pandas as pd
 from src.genetic_algorithm import fitness_function, sample_parents, splice_parents 
 plt.style.use('neilmcblane.mplstyle')
 
-## -- Setup --
 
-rng = default_rng()
+def main(args):
+    ## -- Setup --
+    rng = default_rng()
 
-# Represent teams as ints to save space
-teams = np.arange(20)
-population_size = 100_000
-n_generations = 100
+    # Extract from args for easier use
+    population_size = args.population_size
+    n_generations = args.n_generations
 
-df_fdr = pd.read_csv('fdr.csv', index_col='gw')
-# Assign teams missing fixtures with long odds
-df_odds = pd.read_csv('odds.csv', index_col='gw').fillna(100)
+    df_fdr = pd.read_csv('fdr.csv', index_col='gw')
+    # Assign teams missing fixtures with long odds
+    df_odds = pd.read_csv('odds.csv', index_col='gw').fillna(100)
 
-# Use odds for fitness if available
-fixture_scores = np.vstack([df_odds.values, df_fdr.drop(index=df_odds.index).values])
-fixture_scores = np.power(1 / fixture_scores.T, np.linspace(2, 0, len(teams))).T
+    # Represent teams as ints to save space
+    teams = np.arange(len(df_odds.columns))
+
+    # Use odds for fitness if available
+    fixture_scores = np.vstack([df_odds.values, df_fdr.drop(index=df_odds.index).values])
+    fixture_scores = np.power(1 / fixture_scores.T, np.linspace(2, 0, len(teams))).T
+
+    ## -- Tracking --
+    fig, ax = plt.subplots(figsize=(18, 6))
+
+    ax.plot(fixture_scores)
+    ax.set_xlabel("Gameweek")
+    ax.set_ylabel("Team Score")
+    ax.set_ylim((0, 1))
+    ax.set_xlim((0, 19))
+    ax.set_xticks(np.arange(0, 20, 1))
+    ax.set_xticklabels(np.arange(1, 21, 1))
+
+    fig.savefig('assets/fixture_scores.png', dpi=300)
+
+    ## -- Algorithm --
+    population = np.stack([rng.permutation(teams) for _ in np.arange(population_size)])
+    population_fitness = np.apply_along_axis(lambda gene: fitness_function(gene, fixture_scores), 1, population)
+
+    min_fitnesses = -1 * np.ones(n_generations)
+    max_fitnesses = -1 * np.ones(n_generations)
+    avg_fitnesses = -1 * np.ones(n_generations)
+    std_fitnesses = -1 * np.ones(n_generations)
+
+    for i in range(n_generations):
+        # -- TRACKING --
+        if i % 10 == 0:
+            print(f'{i:3} of {n_generations} Gene fitness summary:')
+            print(f'\t              Best: {population_fitness.max()}')
+            print(f'\t             Worst: {population_fitness.min()}')
+            print(f'\t           Average: {population_fitness.mean()}')
+            print(f'\tStandard deviation: {population_fitness.std()}')
+
+        min_fitnesses[i] = population_fitness.min()
+        max_fitnesses[i] = population_fitness.max()
+        avg_fitnesses[i] = population_fitness.mean()
+        std_fitnesses[i] = population_fitness.std()
+
+        # -- ALGORITHM --
+        parents = sample_parents(population, population_fitness, rng)
+        splice_indices = rng.choice(len(teams), population_size)
+
+        population = splice_parents(parents, splice_indices)
+        population_fitness = np.apply_along_axis(
+            lambda gene: fitness_function(gene, fixture_scores), 1, population
+        )
 
 
-fig, ax = plt.subplots(figsize=(18, 6))
+    fig, ax = plt.subplots(1, figsize=(9, 6))
 
-ax.plot(fixture_scores)
-ax.set_xlabel("Gameweek")
-ax.set_ylabel("Team Score")
-ax.set_ylim((0, 1))
-ax.set_xlim((0, 19))
-ax.set_xticks(np.arange(0, 20, 1))
-ax.set_xticklabels(np.arange(1, 21, 1))
-
-fig.savefig('assets/fixture_scores.png', dpi=300)
-
-## -- Algorithm -- TODO(neilmcb): tidy up, monitor performance
-population = np.stack([rng.permutation(teams) for _ in np.arange(population_size)])
-population_fitness = np.apply_along_axis(lambda gene: fitness_function(gene, fixture_scores), 1, population)
-
-min_fitnesses = -1 * np.ones(n_generations)
-max_fitnesses = -1 * np.ones(n_generations)
-avg_fitnesses = -1 * np.ones(n_generations)
-std_fitnesses = -1 * np.ones(n_generations)
-
-for i in range(n_generations):
-    if i % 10 == 0:
-        print(f'{i:3} of {n_generations} Gene fitness summary:')
-        print(f'\t              Best: {population_fitness.max()}')
-        print(f'\t             Worst: {population_fitness.min()}')
-        print(f'\t           Average: {population_fitness.mean()}')
-        print(f'\tStandard deviation: {population_fitness.std()}')
-
-    min_fitnesses[i] = population_fitness.min()
-    max_fitnesses[i] = population_fitness.max()
-    avg_fitnesses[i] = population_fitness.mean()
-    std_fitnesses[i] = population_fitness.std()
-
-    parents = sample_parents(population, population_fitness, rng)
-    splice_indices = rng.choice(len(teams), population_size)
-
-    population = splice_parents(parents, splice_indices)
-    population_fitness = np.apply_along_axis(
-        lambda gene: fitness_function(gene, fixture_scores), 1, population
+    ax.fill_between(
+        np.arange(0, n_generations),
+        avg_fitnesses + std_fitnesses,
+        avg_fitnesses - std_fitnesses,
+        label='Standard Deviation',
+        color='C0',
+        alpha=0.3,
     )
+    ax.plot(min_fitnesses, label='Generation Worst', color='C14')
+    ax.plot(avg_fitnesses, label='Generation Average', color='C0')
+    ax.plot(max_fitnesses, label='Generation Best', color='C7')
+    ax.axhline(max_fitnesses.max(), color='C7', label='All Time Best', ls='--')
+
+    ax.set_xlabel("Generation")
+    ax.set_ylabel("Gene Fitness")
+    ax.set_xlim((0, n_generations))
+    ax.set_ylim((0, 12))
+
+    ax.legend()
+
+    fig.savefig('assets/fitness_progression.png', dpi=300)
+
+    print(df_fdr.columns[population[np.argmax(population_fitness)]])
 
 
-fig, ax = plt.subplots(1, figsize=(9, 6))
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description = "Generate a sequence of PL Killer predictions.")
+    parser.add_argument("population_size", help="The number of genes per generation.", type=int)
+    parser.add_argument("n_generations", help="The number of generations", type=int)
 
-ax.fill_between(
-    np.arange(0, n_generations),
-    avg_fitnesses + std_fitnesses,
-    avg_fitnesses - std_fitnesses,
-    label='Standard Deviation',
-    color='C0',
-    alpha=0.3,
-)
-ax.plot(min_fitnesses, label='Generation Worst', color='C14')
-ax.plot(avg_fitnesses, label='Generation Average', color='C0')
-ax.plot(max_fitnesses, label='Generation Best', color='C7')
-ax.axhline(max_fitnesses.max(), color='C7', label='All Time Best', ls='--')
-
-ax.set_xlabel("Generation")
-ax.set_ylabel("Gene Fitness")
-ax.set_xlim((0, n_generations))
-ax.set_ylim((0, 12))
-
-ax.legend()
-
-fig.savefig('assets/fitness_progression.png', dpi=300)
-
-print(df_fdr.columns[population[np.argmax(population_fitness)]])
+    args = parser.parse_args()
+    main(args)
