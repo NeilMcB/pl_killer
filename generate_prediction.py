@@ -28,7 +28,7 @@ To run the algorithm with a population size of 1,000 for 500 generations:
 PL Killer
 ---------
 The aim of PL Killer is to select a team each Premier League gameweek who
-will their fixture, subject to the constrain that no team can be selected
+will their fixture, subject to the constraint that no team can be selected
 more than once.
 
 Genetic Algorithm
