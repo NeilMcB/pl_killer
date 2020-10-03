@@ -23,16 +23,18 @@ Potential changes:
 
 ## Example
 To run the algorithm with a population size of 1,000 for 500 generations:
-```
-python generate_prediction.py 1000 500
-```
 
-## PL Killer
+```python generate_prediction.py 1000 500```
+
+This will print out a list of teams and generate plots of the fitness function
+used and the evolution of the population's performance overimte.
+
+## PL Killer
 The aim of PL Killer is to select a team each Premier League gameweek who
 will their fixture, subject to the constraint that no team can be selected
 more than once.
 
-## Genetic Algorithm
+## Genetic Algorithm
 A form of optimisation algorithm inspired by the "survival of the fittest"
 in nature. Genetic algorithms first randomly generate a population of
 "genes" - sequences of teams in this case - then stochastically sample a
